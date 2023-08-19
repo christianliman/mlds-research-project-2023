@@ -649,6 +649,57 @@ def getImputedData(res, colname):
     return impcombined
 
 
+def plotImputedData(res, colname):
+    """
+    Alternative helper function to construct a strip plot of imputed values for a given variable
+    
+    Parameters
+    ----------
+    res : dict
+        Python dictionary returned by `MICEPMM`
+    colname : str
+        Variable for which the imputed data is to be shown
+    
+    Returns
+    -------
+    matplotlib.pyplot.figure
+        Figure showing the strip plots
+    """
+
+    # Retrieve relevant data
+    implist, missingflag = res["imp"], res["missingflag"]
+    
+    # Extract relevant missing flag
+    yflag = missingflag[colname]
+    
+    # Iterate over all imputed data
+    impdata, impnums, impflag = [], [], []
+    for i, data in enumerate(implist):
+        # Extract relevant column
+        impdata.append(data[colname].values)
+        impnums.append(np.ones(data.shape[0], dtype=np.int32) * (i+1))
+        impflag.append(yflag.values)
+    
+    # Construct combined data for plotting
+    impdata = np.concatenate(impdata)
+    impnums = np.concatenate(impnums)
+    impflag = np.concatenate(impflag)
+    impdf = pd.DataFrame({
+        colname: impdata,
+        "Imputation number": impnums,
+        "Imputed": impflag,
+        })
+
+    # Placeholder for plotting
+    fig, ax = plt.subplots()
+
+    # Generate strip plot
+    sns.stripplot(data=impdf, x="Imputation number", y=colname, hue="Imputed", jitter=True, 
+        ax=ax)
+
+    return fig
+
+
 def ChainStatsViz(res, maxvar=3):
     """
     Constructs a trace plot of chain statistics based on the `MICEPMM` output
