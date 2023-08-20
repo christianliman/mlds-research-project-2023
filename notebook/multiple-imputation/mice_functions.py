@@ -343,7 +343,7 @@ def _augment_data(X, y, Xflag, yflag):
     aug = mu_mtrx + shift_mtrx * sig_mtrx
     aug = pd.DataFrame(aug, columns=X.columns)
     ynew = pd.Series(ynew)
-    augflag = pd.DataFrame(np.zeros(nr, ).astype(bool), columns=X.columns)
+    augflag = pd.DataFrame(np.zeros((nr, X.shape[1])).astype(bool), columns=X.columns)
     
     # Augment to the original data
     Xaug = pd.concat([X, aug], ignore_index=True)
