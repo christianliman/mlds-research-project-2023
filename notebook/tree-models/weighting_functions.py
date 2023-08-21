@@ -79,8 +79,8 @@ def _weighted_data(imp, any_missingflag, outcome, covars):
             ws.append(np.ones((Nobs, 1)))
         
         # Append imputed data only with appropriate weight
-        Xs.append(tempX.iloc[any_missingflag])
-        ys.append(tempy.iloc[any_missingflag])
+        Xs.append(tempX[any_missingflag])
+        ys.append(tempy[any_missingflag])
         ws.append(np.ones((Nmis, 1)) / m)
     
     # Merge data together
