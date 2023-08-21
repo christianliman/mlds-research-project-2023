@@ -16,7 +16,7 @@ from sklearn.base import TransformerMixin, ClassifierMixin
 from sklearn.ensemble import RandomForestClassifier, GradientBoostingClassifier
 from sklearn.model_selection import KFold
 from sklearn.metrics import (roc_auc_score, f1_score, precision_score, recall_score, 
-                             RocCurveDisplay, PrecisionRecallDisplay)
+                             RocCurveDisplay, PrecisionRecallDisplay, mean_squared_error)
 from pandas.api.types import CategoricalDtype
 
 
@@ -79,8 +79,8 @@ def _weighted_data(imp, any_missingflag, outcome, covars):
             ws.append(np.ones((Nobs, 1)))
         
         # Append imputed data only with appropriate weight
-        Xs.append(tempX[any_missingflag])
-        ys.append(tempy[any_missingflag])
+        Xs.append(tempX.iloc[any_missingflag])
+        ys.append(tempy.iloc[any_missingflag])
         ws.append(np.ones((Nmis, 1)) / m)
     
     # Merge data together
@@ -112,26 +112,27 @@ def KFoldWeighted(n_splits, res, outcome, base_model, classifier=True, random_st
     # Iterate over the folds
     for i, (train_index, test_index) in enumerate(kf.split(res["imp"][0])):
         # Reconstruct missing flag
-        misflag_train = any_missingflag.iloc[train_index]
-        misflag_test = any_missingflag.iloc[test_index]
+        misflag_train = any_missingflag.iloc[train_index].values
+        misflag_test = any_missingflag.iloc[test_index].values
         
         # Separate out train and test data
         imp_train, imp_test = [], []
         for j in range(m):
             # Split the j-th dataset
             imp_train.append(res["imp"][j].iloc[train_index])
-            # Filter observed data only for test data
-            imp_test.append(
-                res["imp"][j].iloc[test_index][misflag_test.values]
-            )
+            imp_test.append(res["imp"][j].iloc[test_index])
         
         # Construct weighted data
         X_train, y_train, w_train = _weighted_data(
             imp_train, misflag_train, outcome, covars=covars
         )
-        X_test, y_test, _ = _weighted_data(
-            imp_test, misflag_test[misflag_test == 1], outcome, covars=covars
+        X_test, y_test, w_test = _weighted_data(
+            imp_test, misflag_test, outcome, covars=covars
         )
+
+        # For test data, we are only interested in observed data
+        X_test = X_test[w_test == 1]
+        y_test = y_test[w_test == 1]
         
         # Build model on training data
         curmodel = copy.deepcopy(base_model)
@@ -140,9 +141,9 @@ def KFoldWeighted(n_splits, res, outcome, base_model, classifier=True, random_st
         # Predict on test data and store predictions
         if classifier:
             # Compute probability if model is a classifier
-            pred_test = curmodel.predict_proba(Xobs_test)[:, 1]
+            pred_test = curmodel.predict_proba(X_test)[:, 1]
         else:
-            pred_test = curmodel.predict(Xobs_test)
+            pred_test = curmodel.predict(X_test)
         preds.append(pd.DataFrame({"true": y_test, "pred": pred_test}))
     
     # Aggregate predictions and compute performance metrics

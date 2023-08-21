@@ -144,8 +144,8 @@ def KFoldEnsemble(n_splits, X, y, misflag, base_model, classifier=True, random_s
         # Construct single dataframe for test data
         # NOTE: Focus on observed data for now
         misflag_test = misflag.iloc[test_index].values
-        Xobs_test = X_test[0][misflag_test]
-        yobs_test = y_test[0][misflag_test]
+        Xobs_test = X_test[0][~misflag_test]
+        yobs_test = y_test[0][~misflag_test]
         
         # Predict on test data and store predictions
         if classifier:

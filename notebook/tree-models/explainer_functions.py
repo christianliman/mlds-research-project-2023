@@ -19,19 +19,44 @@ from sklearn.metrics import (roc_auc_score, f1_score, precision_score, recall_sc
                              RocCurveDisplay, PrecisionRecallDisplay)
 from pandas.api.types import CategoricalDtype
 
+# Helper function to create model explanation and store visualizations
+def ExplainModel(model, res, outcome, selected_features, figpath, classifier=True):
+    ## DOCUMENTATION TO BE ADDED
+    # Construct explainer and (exact) SHAP values
+    expl, shapvals = CreateSHAPExplainer(model, res, outcome, 
+        classifier, covars=covars)
 
-# Implement SHAP explainer wrapper for classifiers
-def CreateSHAPExplainer(model, res, outcome):
+    # Create dependence plot for selected features
+    for c in selected_features:
+        f1 = GenerateDependencePlot(model, res, c, outcome, shapvals, 
+            classifier=classifier, shap_plot=True, covars=covars)
+        f1.savefig(figpath + "dependence_{}.pdf".format(c))
+
+    # Create beeswarm plot
+    plt.clf()
+    _ = shap.plots.beeswarm(shapvals, show=False)
+    plt.savefig(figpath + "beeswarm.pdf")
+
+    return shapvals
+
+
+# Implement SHAP explainer wrapper
+def CreateSHAPExplainer(model, res, outcome, classifier=True, covars=None):
     ## DOCUMENTATION TO BE ADDED
     # Get observed data only for the background distribution
     any_missingflag = res["missingflag"].any(axis=1)
-    Xobs = res["imp"][0].drop(outcome, axis=1)[any_missingflag]
+    if covars is None:
+        Xobs = res["imp"][0].drop(outcome, axis=1)[any_missingflag]
+    else:
+        Xobs = res["imp"][0][covars][any_missingflag]
     background_data = shap.maskers.Independent(Xobs, max_samples=100)
     
     # Construct SHAP explainer
-    # TO UPDATE WITH APPROPRIATE FUNCTION
-    pos_prob_fn = lambda x: model.predict_proba(x)[:, 1]
-    explainer = shap.Explainer(pos_prob_fn, background_data)
+    if classifier:
+        pred_fn = lambda x: model.predict_proba(x)[:, 1]
+    else:
+        pred_fn = lambda x: model.predict(x)
+    explainer = shap.Explainer(pred_fn, background_data)
     
     # Calculate SHAP values on the entire observed data
     shap_values = explainer(Xobs)
@@ -40,8 +65,7 @@ def CreateSHAPExplainer(model, res, outcome):
 
 
 # Create wrapper for SHAP or partial dependence plot
-def GenerateDependencePlot(model, res, feature, outcome, shap_values, 
-                           shap_plot=False, ax=None):
+def GenerateDependencePlot(model, res, feature, outcome, shap_values, classifier=True, shap_plot=False, ax=None, covars=None):
     ## DOCUMENTATION TO BE ADDED
     # Create figure object if needed
     if ax is None:
@@ -51,19 +75,25 @@ def GenerateDependencePlot(model, res, feature, outcome, shap_values,
         
     # Get observed data only
     any_missingflag = res["missingflag"].any(axis=1)
-    Xobs = res["imp"][0].drop(outcome, axis=1)[any_missingflag]
+    if covars is None:
+        Xobs = res["imp"][0].drop(outcome, axis=1)[any_missingflag]
+    else:
+        Xobs = res["imp"][0][covars][any_missingflag]
     
     if shap_plot:
         # Construct SHAP dependence plot
         shap.plots.scatter(
-            shap_values[:, feature], show=False, colors=shap_values, ax=ax
+            shap_values[:, feature], show=False, ax=ax
         )
     else:
         # Construct partial dependence plot
         # MIGHT NEED TO CHANGE THE PREDICT FUNCTION LATER
-        pos_prob_fn = lambda x: model.predict_proba(x)[:, 1]
+        if classifier:
+            pred_fn = lambda x: model.predict_proba(x)[:, 1]
+        else:
+            pred_fn = lambda x: model.predict(x)
         shap.partial_dependence_plot(
-            feature, pos_prob_fn, Xobs, model_expected_value=True, 
+            feature, pred_fn, Xobs, model_expected_value=True, 
             feature_expected_value=True, show=False, ice=False, ax=ax
         )
     
