@@ -14,7 +14,7 @@ from tqdm import tqdm
 from matplotlib import cm
 from sklearn.base import TransformerMixin, ClassifierMixin, RegressorMixin
 from sklearn.ensemble import RandomForestClassifier, GradientBoostingClassifier
-from sklearn.model_selection import KFold
+from sklearn.model_selection import KFold, StratifiedKFold
 from sklearn.metrics import (roc_auc_score, f1_score, precision_score, recall_score, 
                              RocCurveDisplay, PrecisionRecallDisplay, mean_squared_error)
 from pandas.api.types import CategoricalDtype
@@ -115,7 +115,8 @@ def KFoldEnsemble(n_splits, X, y, misflag, base_model, classifier=True, random_s
     # Wrapper to implement k-fold cross validation on ensemble data
     ## Note: Missing flag should be 1-dimensional
     # Generate k-fold object
-    kf = KFold(n_splits=n_splits, random_state=random_state, shuffle=True)
+    #kf = KFold(n_splits=n_splits, random_state=random_state, shuffle=True)
+    kf = StratifiedKFold(n_splits=n_splits, random_state=random_state, shuffle=True)
     
     # Get number of multiply imputed data
     m = len(X)
@@ -124,7 +125,8 @@ def KFoldEnsemble(n_splits, X, y, misflag, base_model, classifier=True, random_s
     preds = []
     
     # Iterate over the folds
-    for i, (train_index, test_index) in enumerate(kf.split(X[0])):
+    # for i, (train_index, test_index) in enumerate(kf.split(X[0])):
+    for i, (train_index, test_index) in enumerate(kf.split(X[0], misflag)):
         # Construct train and test data
         X_train, X_test, y_train, y_test = [], [], [], []
         for j in range(m):

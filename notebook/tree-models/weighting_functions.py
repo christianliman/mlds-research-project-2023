@@ -14,7 +14,7 @@ from tqdm import tqdm
 from matplotlib import cm
 from sklearn.base import TransformerMixin, ClassifierMixin
 from sklearn.ensemble import RandomForestClassifier, GradientBoostingClassifier
-from sklearn.model_selection import KFold
+from sklearn.model_selection import KFold, StratifiedKFold
 from sklearn.metrics import (roc_auc_score, f1_score, precision_score, recall_score, 
                              RocCurveDisplay, PrecisionRecallDisplay, mean_squared_error)
 from pandas.api.types import CategoricalDtype
@@ -97,7 +97,8 @@ def KFoldWeighted(n_splits, res, outcome, base_model, classifier=True, random_st
     # NOTE: Unlike KFoldEnsemble, this is to be used with the imputed
     # object directly (no need to call PrepareWeightedData)
     # Generate k-fold object
-    kf = KFold(n_splits=n_splits, random_state=random_state, shuffle=True)
+    #kf = KFold(n_splits=n_splits, random_state=random_state, shuffle=True)
+    kf = StratifiedKFold(n_splits=n_splits, random_state=random_state, shuffle=True)
     
     # Get number of multiply imputed data
     m = len(res["imp"])
@@ -110,7 +111,8 @@ def KFoldWeighted(n_splits, res, outcome, base_model, classifier=True, random_st
     preds = []
     
     # Iterate over the folds
-    for i, (train_index, test_index) in enumerate(kf.split(res["imp"][0])):
+    # for i, (train_index, test_index) in enumerate(kf.split(res["imp"][0])):
+    for i, (train_index, test_index) in enumerate(kf.split(res["imp"][0], any_missingflag)):
         # Reconstruct missing flag
         misflag_train = any_missingflag.iloc[train_index].values
         misflag_test = any_missingflag.iloc[test_index].values
