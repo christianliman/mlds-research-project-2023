@@ -91,7 +91,7 @@ def _weighted_data(imp, any_missingflag, outcome, covars):
     return X, y, w
 
 
-def KFoldWeighted(n_splits, res, outcome, base_model, classifier=True, random_state=None, covars=None):
+def KFoldWeighted(n_splits, res, outcome, base_model, classifier=True, random_state=None, covars=None, resample=False, pred_cutoff=0.5):
     ## DOCUMENTATION TO BE ADDED
     # Wrapper to implement k-fold cross validation on weighted data
     # NOTE: Unlike KFoldEnsemble, this is to be used with the imputed
@@ -132,6 +132,22 @@ def KFoldWeighted(n_splits, res, outcome, base_model, classifier=True, random_st
             imp_test, misflag_test, outcome, covars=covars
         )
 
+        # If needed, we rebalance the training indices
+        # Note that this process may cause the effective sample size to change
+        # but so does the process with normal data
+        # To discuss in report
+        if resample:
+            train_index_pos = y_train[y_train == 1].index
+            train_index_neg = y_train[y_train == 0].index
+            train_index_pos_up = np.random.choice(
+                train_index_pos, size=len(train_index_neg), replace=True
+            )
+            train_index_up = np.concatenate((train_index_pos_up, train_index_neg), axis=0)
+
+            X_train = X_train.loc[train_index_up]
+            w_train = pd.Series(w_train, index=y_train.index).loc[train_index_up].values
+            y_train = y_train.loc[train_index_up]
+
         # For test data, we are only interested in observed data
         X_test = X_test[w_test == 1]
         y_test = y_test[w_test == 1]
@@ -154,7 +170,7 @@ def KFoldWeighted(n_splits, res, outcome, base_model, classifier=True, random_st
 
     # Adapt metric depending on model type
     if classifier:
-        preds["pred_labels"] = preds["pred"] > 0.5
+        preds["pred_labels"] = preds["pred"] > pred_cutoff
         all_metrics = {
             "AUROC": roc_auc_score(preds["true"], preds["pred"]),
             #"Precision": precision_score(preds["true"], preds["pred_labels"]),

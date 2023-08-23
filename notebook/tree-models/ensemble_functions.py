@@ -110,7 +110,7 @@ class EnsembleRegressor(RegressorMixin):
         return np.mean(predicted, axis=1)
 
 
-def KFoldEnsemble(n_splits, X, y, misflag, base_model, classifier=True, random_state=None):
+def KFoldEnsemble(n_splits, X, y, misflag, base_model, classifier=True, random_state=None, resample=False, pred_cutoff=0.5):
     ## DOCUMENTATION TO BE ADDED
     # Wrapper to implement k-fold cross validation on ensemble data
     ## Note: Missing flag should be 1-dimensional
@@ -127,12 +127,26 @@ def KFoldEnsemble(n_splits, X, y, misflag, base_model, classifier=True, random_s
     # Iterate over the folds
     # for i, (train_index, test_index) in enumerate(kf.split(X[0])):
     for i, (train_index, test_index) in enumerate(kf.split(X[0], misflag)):
+        # If needed, we rebalance the training indices
+        if resample:
+            temp = y[0].iloc[train_index] # note that y is not imputed so this is fine
+            train_index_pos = temp[temp == 1].index
+            train_index_neg = temp[temp == 0].index
+            train_index_pos_up = np.random.choice(
+                train_index_pos, size=len(train_index_neg), replace=True
+            )
+            train_index_up = np.concatenate((train_index_pos_up, train_index_neg), axis=0)
+
         # Construct train and test data
         X_train, X_test, y_train, y_test = [], [], [], []
         for j in range(m):
             # Split the j-th dataset
-            X_train.append(X[j].iloc[train_index])
-            y_train.append(y[j].iloc[train_index])
+            if resample:
+                X_train.append(X[j].iloc[train_index_up])
+                y_train.append(y[j].iloc[train_index_up])
+            else:
+                X_train.append(X[j].iloc[train_index])
+                y_train.append(y[j].iloc[train_index])
             X_test.append(X[j].iloc[test_index])
             y_test.append(y[j].iloc[test_index])
         
@@ -163,7 +177,7 @@ def KFoldEnsemble(n_splits, X, y, misflag, base_model, classifier=True, random_s
 
     # Adapt metric depending on model type
     if classifier:
-        preds["pred_labels"] = preds["pred"] > 0.5
+        preds["pred_labels"] = preds["pred"] > pred_cutoff
         all_metrics = {
             "AUROC": roc_auc_score(preds["true"], preds["pred"]),
             #"Precision": precision_score(preds["true"], preds["pred_labels"]),
