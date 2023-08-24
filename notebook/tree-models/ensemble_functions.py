@@ -177,12 +177,22 @@ def KFoldEnsemble(n_splits, X, y, misflag, base_model, classifier=True, random_s
 
     # Adapt metric depending on model type
     if classifier:
-        preds["pred_labels"] = preds["pred"] > pred_cutoff
+        if type(pred_cutoff) in [list, np.ndarray]:
+            f1 = []
+            for p in pred_cutoff:
+                # Get labels
+                preds["pred_labels"] = preds["pred"] > p
+                f1.append(f1_score(preds["true"], preds["pred_labels"]))
+        else:
+            preds["pred_labels"] = preds["pred"] > pred_cutoff
+            f1 = f1_score(preds["true"], preds["pred_labels"])
+
+        # Collate metrics
         all_metrics = {
             "AUROC": roc_auc_score(preds["true"], preds["pred"]),
             #"Precision": precision_score(preds["true"], preds["pred_labels"]),
             #"Recall": recall_score(preds["true"], preds["pred_labels"]),
-            "F1": f1_score(preds["true"], preds["pred_labels"]),
+            "F1": f1,
         }
         
         # Construct ROC and precision-recall curves
