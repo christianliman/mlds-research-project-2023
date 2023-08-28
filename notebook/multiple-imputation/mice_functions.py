@@ -741,12 +741,12 @@ def ChainStatsViz(res, maxvar=3):
     for i, idx in enumerate(missingvarsind):
         # Plot chain mean
         for j in range(m):
-            axs[i, 0].plot(chainmean[i, j, :], color=cmap(j % 10), alpha=0.7)
+            axs[i, 0].plot(chainmean[idx, j, :], color=cmap(j % 10), alpha=0.7)
         axs[i, 0].set_title("{}: mean".format(allvars[idx]))
         
         # Plot chain SD
         for j in range(m):
-            axs[i, 1].plot(chainstd[i, j, :], color=cmap(j % 10), alpha=0.7)
+            axs[i, 1].plot(chainstd[idx, j, :], color=cmap(j % 10), alpha=0.7)
         axs[i, 1].set_title("{}: SD".format(allvars[idx]))
     
     return fig
