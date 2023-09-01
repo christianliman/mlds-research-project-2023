@@ -18,6 +18,7 @@ from sklearn.model_selection import KFold
 from sklearn.metrics import (roc_auc_score, f1_score, precision_score, recall_score, 
                              RocCurveDisplay, PrecisionRecallDisplay)
 from pandas.api.types import CategoricalDtype
+from matplotlib.ticker import FormatStrFormatter
 
 
 def ImputeRandomSample(data, seed=None):
@@ -414,10 +415,10 @@ def MICEPMM(data, m=10, maxit=5, d=5, k=1e-5, seed=123):
         imp.append(ImputeRandomSample(data))
     
     # Initialize chain statistics
-    chainmean = np.empty((data.shape[1], m, maxit+1))
-    chainstd = np.empty((data.shape[1], m, maxit+1))
+    chainmean = np.empty((data.shape[1], maxit+1, m))
+    chainstd = np.empty((data.shape[1], maxit+1, m))
     for i in range(m):
-        chainmean[:, i, 0], chainstd[:, i, 0] = getImputedStats(imp[i], missingflag)
+        chainmean[:, 0, i], chainstd[:, 0, i] = getImputedStats(imp[i], missingflag)
     
     # Iterate over maxit
     for j in tqdm(range(maxit)):
@@ -428,14 +429,15 @@ def MICEPMM(data, m=10, maxit=5, d=5, k=1e-5, seed=123):
             imp[i] = ImputePMM(imp[i], missingflag, d=d, k=k)
         
             # Calculate updated chain statistics
-            chainmean[:, i, j+1], chainstd[:, i, j+1] = getImputedStats(imp[i], missingflag)
+            chainmean[:, j+1, i], chainstd[:, j+1, i] = getImputedStats(imp[i], missingflag)
     
     # Return multiply imputed data and chain statistics
     res = {
         "imp": imp,
         "missingflag": missingflag,
         "chainmean": chainmean,
-        "chainstd": chainstd
+        "chainstd": chainstd,
+        "maxit": maxit
     }
     return res
 
@@ -488,10 +490,10 @@ def MICELogReg(data, m=10, maxit=5, d=5, k=1e-5, seed=123, method="boot"):
         imp.append(ImputeRandomSample(data))
     
     # Initialize chain statistics
-    chainmean = np.empty((data.shape[1], m, maxit+1))
-    chainstd = np.empty((data.shape[1], m, maxit+1))
+    chainmean = np.empty((data.shape[1], maxit+1, m))
+    chainstd = np.empty((data.shape[1], maxit+1, m))
     for i in range(m):
-        chainmean[:, i, 0], chainstd[:, i, 0] = getImputedStats(imp[i], missingflag)
+        chainmean[:, 0, i], chainstd[:, 0, i] = getImputedStats(imp[i], missingflag)
     
     # Iterate over maxit
     for j in tqdm(range(maxit)):
@@ -507,14 +509,15 @@ def MICELogReg(data, m=10, maxit=5, d=5, k=1e-5, seed=123, method="boot"):
                 raise ValueError("Invalid method: {}".format(method))
         
             # Calculate updated chain statistics
-            chainmean[:, i, j+1], chainstd[:, i, j+1] = getImputedStats(imp[i], missingflag)
+            chainmean[:, j+1, i], chainstd[:, j+1, i] = getImputedStats(imp[i], missingflag)
     
     # Return multiply imputed data and chain statistics
     res = {
         "imp": imp,
         "missingflag": missingflag,
         "chainmean": chainmean,
-        "chainstd": chainstd
+        "chainstd": chainstd,
+        "maxit": maxit
     }
     return res
 
@@ -575,10 +578,10 @@ def MICE(data, targets_cat, targets_num, m=10, maxit=5, d=5, k=1e-5, seed=123, m
         imp.append(ImputeRandomSample(data))
     
     # Initialize chain statistics
-    chainmean = np.empty((data.shape[1], m, maxit+1))
-    chainstd = np.empty((data.shape[1], m, maxit+1))
+    chainmean = np.empty((data.shape[1], maxit+1, m))
+    chainstd = np.empty((data.shape[1], maxit+1, m))
     for i in range(m):
-        chainmean[:, i, 0], chainstd[:, i, 0] = getImputedStats(imp[i], missingflag)
+        chainmean[:, 0, i], chainstd[:, 0, i] = getImputedStats(imp[i], missingflag)
     
     # Define dictionary to map appropriate functions
     imputefunc = {
@@ -601,14 +604,15 @@ def MICE(data, targets_cat, targets_num, m=10, maxit=5, d=5, k=1e-5, seed=123, m
                                                 targets=targets_num)
         
             # Calculate updated chain statistics
-            chainmean[:, i, j+1], chainstd[:, i, j+1] = getImputedStats(imp[i], missingflag)
+            chainmean[:, j+1, i], chainstd[:, j+1, i] = getImputedStats(imp[i], missingflag)
     
     # Return multiply imputed data and chain statistics
     res = {
         "imp": imp,
         "missingflag": missingflag,
         "chainmean": chainmean,
-        "chainstd": chainstd
+        "chainstd": chainstd,
+        "maxit": maxit
     }
     return res
 
@@ -649,7 +653,7 @@ def getImputedData(res, colname):
     return impcombined
 
 
-def plotImputedData(res, colname):
+def plotImputedData(res, colname, ax=None, seed=2023):
     """
     Alternative helper function to construct a strip plot of imputed values for a given variable
     
@@ -686,67 +690,93 @@ def plotImputedData(res, colname):
     impflag = np.concatenate(impflag)
     impdf = pd.DataFrame({
         colname: impdata,
-        "Imputation number": impnums,
+        "Imputation": impnums,
         "Imputed": impflag,
         })
 
+    sns.set_style('ticks', {'font.family': ['Times New Roman']})
+    sns.set_context('paper', font_scale=1.5)
+
     # Placeholder for plotting
-    fig, ax = plt.subplots()
+    if ax is None:
+        fig, ax = plt.subplots(figsize=(4, 4))
+    else:
+        fig = None
 
     # Generate strip plot
-    sns.stripplot(data=impdf, x="Imputation number", y=colname, hue="Imputed", jitter=True, 
-        ax=ax)
+    np.random.seed(seed) # for jitter
+    sns.stripplot(data=impdf, x="Imputation", y=colname, hue="Imputed", jitter=True, 
+        ax=ax, alpha=0.3, palette="Set2", legend=False, dodge=True)
+    ax.set_xlabel("")
+    ax.set_xticks([])
 
-    return fig
+    # Return plot
+    if fig is None:
+        return ax
+    else:
+        fig.tight_layout()
+        return fig
 
 
-def ChainStatsViz(res, maxvar=3):
+def ChainStatsViz(res, missingvars=None, maxvar=3):
     """
-    Constructs a trace plot of chain statistics based on the `MICEPMM` output
+    Revamped on 1st September
+    Constructs a trace plot of chain statistics. Compatible with both Python output
+    and R output which has been made Python-compatible (see notebook for more details)
     
     Parameters
     ----------
     res : dict
-        Python dictionary returned by `MICEPMM`
+        Python dictionary returned by the MICE functions
+    missingvars : list, optional
+        List of imputed variables for which a trace plot should be generated
     maxvar : int, optional
         Maximum number of variables to be visualized (default = 3). Note that only
-        variables with missing data will be shown
+        variables with missing data will be shown (DEPRECATED)
     
     Returns
     -------
     matplotlib.pyplot.figure
         Figure showing the trace plots
     """
-    # Retrieve chain mean and standard deviation
-    chainmean, chainstd = res["chainmean"], res["chainstd"]
-    
-    # Pick first maxvar variables with missing data
+
+    # First, get indices of imputed variables
     allvars = pd.Series(res["missingflag"].columns.values)
-    missingvars = res["missingflag"].columns[res["missingflag"].sum() > 0]
-    if len(missingvars) < maxvar:
-        maxvar = len(missingvars)
-    else:
-        missingvars = missingvars[:maxvar]
-    missingvarsind = allvars[allvars.isin(missingvars)].index
+    if missingvars is None:
+        missingvars = res["missingflag"].columns[res["missingflag"].sum() > 0]
+    varmap = allvars[allvars.isin(missingvars)].to_dict()
+    statsmap = {"chainmean": "Mean", "chainstd": "SD"}
+
+    sns.set_style('ticks', {'font.family': ['Times New Roman']})
+    sns.set_context('paper', font_scale=1.5)
+
+    # Reconstruct chain statistics data into a single data frame
+    chaindflist = []
+    for idx, c in varmap.items():
+        # Handle the statistic one by one
+        for s, sname in statsmap.items():
+            # dimension is variable x iteration x copy
+            temp = pd.DataFrame(res[s][idx, :, :]).reset_index().melt("index")
+            temp.columns = ["Iteration", "Copy", "Value"]
+            temp["Stats"] = sname
+            temp["Var"] = c
+            chaindflist.append(temp)
+    # Combine into single data frame
+    chaindf = pd.concat(chaindflist, ignore_index=True)
+
+    # Generate trellis plot
+    g = sns.FacetGrid(chaindf, col="Stats", row="Var", sharey=False, 
+                      margin_titles=True, height=3, aspect=1, despine=False)
+    g.map_dataframe(sns.lineplot, x="Iteration", y="Value", hue="Copy", 
+                    legend=False, linewidth=0.5)
+    g.set_axis_labels("Iteration", "")
+    g.set_titles(col_template="{col_name}", row_template="{row_name}")
+    g.set(xticks=np.linspace(0, res["maxit"], 3))
+    for ax in g.axes.flat:
+        ax.yaxis.set_major_formatter(FormatStrFormatter("%.2f"))
+        ax.yaxis.set_major_locator(plt.MaxNLocator(3))
+        for lab in ax.get_yticklabels():
+            lab.set_rotation(90)
+    g.tight_layout()
     
-    # Get number of imputed data
-    m = len(res["imp"])
-    
-    # Placeholder for plotting
-    fig, axs = plt.subplots(figsize=(8, maxvar*3), ncols=2, nrows=maxvar, 
-                            sharex=True)
-    cmap = cm.get_cmap("jet", 10) # If m > 10, it will rotate back to start
-    
-    # Generate plot for each variable and imputation
-    for i, idx in enumerate(missingvarsind):
-        # Plot chain mean
-        for j in range(m):
-            axs[i, 0].plot(chainmean[idx, j, :], color=cmap(j % 10), alpha=0.7)
-        axs[i, 0].set_title("{}: mean".format(allvars[idx]))
-        
-        # Plot chain SD
-        for j in range(m):
-            axs[i, 1].plot(chainstd[idx, j, :], color=cmap(j % 10), alpha=0.7)
-        axs[i, 1].set_title("{}: SD".format(allvars[idx]))
-    
-    return fig
+    return g
