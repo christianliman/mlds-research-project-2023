@@ -653,7 +653,7 @@ def getImputedData(res, colname):
     return impcombined
 
 
-def plotImputedData(res, colname, ax=None, seed=2023):
+def plotImputedData(res, colname, ax=None, seed=2023, figsize=(4, 4)):
     """
     Alternative helper function to construct a strip plot of imputed values for a given variable
     
@@ -663,6 +663,12 @@ def plotImputedData(res, colname, ax=None, seed=2023):
         Python dictionary returned by `MICEPMM`
     colname : str
         Variable for which the imputed data is to be shown
+    ax : matplotlib Axes, optional
+        Axes object to draw the plot onto, otherwise creates a new figure object.
+    seed : int, optional
+        Random seed to ensure reproducibility of the jittering (passed into NumPy)
+    figsize : tuple, optional
+        Tuple indicating the width and height of the plot. Ignored if ax is passed in
     
     Returns
     -------
@@ -699,7 +705,7 @@ def plotImputedData(res, colname, ax=None, seed=2023):
 
     # Placeholder for plotting
     if ax is None:
-        fig, ax = plt.subplots(figsize=(4, 4))
+        fig, ax = plt.subplots(figsize=figsize)
     else:
         fig = None
 
